@@ -1,0 +1,450 @@
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { ArrowRight, ArrowUpRight } from 'lucide-react';
+import Cursor from './components/Cursor';
+import Preloader from './components/Preloader';
+import Logo from './components/Logo';
+import usePreloader from './hooks/usePreloader';
+import TiltCard from './components/TiltCard';
+import SplitWords from './components/SplitWords';
+import LocalTime from './components/LocalTime';
+import useMediaQuery from './hooks/useMediaQuery';
+
+// ============ DATA ============
+const CONTACT = {
+  email: 'chawaphongk@gmail.com',
+  phoneDisplay: '+66 82 283 9157',
+  phoneHref: '+66822839157',
+  instagram: 'https://instagram.com/earth_cha',
+  github: 'https://github.com/earthchawa',
+};
+
+const RESUME_URL = '/chawaphong-resume-2026.pdf';
+
+const SKILL_GROUPS = [
+  { label: 'Frontend', items: ['HTML / CSS', 'JavaScript (ES6+)', 'React', 'Tailwind CSS', 'Three.js / WebGL', 'PWA'] },
+  { label: 'Backend & Automation', items: ['Node.js', 'Python', 'Java', 'Google Apps Script', 'GitHub Actions'] },
+  { label: 'AI', items: ['Gemini API', 'Agentic Workflows', 'AI-assisted Development'] },
+  { label: 'Design', items: ['UI/UX Design', 'Figma', 'Wireframing & Prototyping'] },
+];
+
+// url: null = not public yet (row shows "In progress", no link)
+// image: null = no hover preview
+const PROJECTS = [
+  {
+    id: '01',
+    title: 'NKRAFA AI Classroom',
+    category: 'AI · EdTech',
+    description: 'An AI-powered classroom platform for air cadets at NKRAFA.',
+    url: null,
+    image: null,
+  },
+  {
+    id: '02',
+    title: 'Nidnoi App',
+    category: 'PWA · Agentic AI',
+    description: 'A mobile-first app for learning Thai in bite-sized daily lessons, with fresh content generated every morning by Gemini.',
+    url: 'https://nidnoi-app.vercel.app/',
+    image: '/projects/nidnoi.jpg',
+  },
+  {
+    id: '03',
+    title: 'Consult Namu',
+    category: 'Client Website',
+    description: 'Website for a sourcing consultancy that helps American brands produce and inspect their goods in Asia.',
+    url: 'https://consultnamu.com/',
+    image: '/projects/consultnamu.jpg',
+  },
+  {
+    id: '04',
+    title: 'L9 Discord Check-in Bot',
+    category: 'Discord Bot · Automation',
+    description: 'Tracks guild attendance from Discord into a live dashboard, running serverless on Google Apps Script and Sheets.',
+    url: 'https://github.com/earthchawa/L9-discord-checkin-bot',
+    image: '/projects/discord-checkin-bot.jpg',
+  },
+];
+
+// w/h = displayed size. Each photo drops into the currently shortest column,
+// so this order is tuned to keep the columns' bottoms even
+const ARCHIVE = [
+  { src: '/uniform.jpg', w: 754, h: 960, title: 'Roots & Discipline', caption: 'NKRAFA Formal Portrait' },
+  { src: '/china.jpg', w: 1024, h: 768, title: 'Culture & Travel', caption: 'Wandering through worlds' },
+  { src: '/nkrafa.jpg', w: 876, h: 584, title: 'Home Base', caption: 'NKRAFA from above — where I teach' },
+  { src: '/christmas.jpg', w: 1200, h: 1600, title: 'Festive Moments', caption: 'Christmas tree & Lola' },
+  { src: '/thaitea.jpg', w: 768, h: 1024, title: 'Tea Enthusiasm', caption: 'Cha Yen — never without one' },
+  { src: '/mastergrad.jpg', w: 771, h: 1024, title: "Master's Achieved", caption: 'Graduation by the Chicago River' },
+  { src: '/winter.jpg', w: 1478, h: 1108, title: 'Winter Escapes', caption: 'Bluff-top views on a Midwest road trip' },
+  { src: '/film.jpg', w: 1600, h: 1065, title: 'Chicago on 35mm', caption: 'Capturing the skyline' },
+  { src: '/magic.jpg', w: 1200, h: 1600, title: 'Wizarding World', caption: 'Exploring the magic' },
+  { src: '/class.jpg', w: 1200, h: 1600, title: 'Lifelong Student', caption: 'Mobile App Development Class' },
+  { src: '/gradday.jpg', w: 1200, h: 1600, title: 'Commencement', caption: 'DePaul University Ceremony · 2024' },
+  { src: '/flyingtraining.jpg', w: 1170, h: 777, title: 'Taking Flight', caption: 'Flight Training Days' },
+];
+
+// Per column: top padding class + the same offset in column widths (for balancing)
+const ARCHIVE_OFFSET = {
+  2: [['', 0], ['pt-10', 0.24]],
+  3: [['', 0], ['pt-16', 0.19], ['pt-8', 0.1]],
+};
+const ARCHIVE_GAP = 0.12; // gap + mobile caption, in column widths
+
+const SECTION_SCENE = { work: 2, contact: 3 };
+const LOAD_STEPS = ['fonts', 'scene', 'images'];
+const PRELOAD_IMAGES = ['/professional.jpg', ...PROJECTS.map((p) => p.image).filter(Boolean)];
+const PAGE_EXIT_MS = 800;
+const YEAR = new Date().getFullYear();
+
+const linkLabel = (url) => (url.includes('github.com') ? 'GitHub' : 'Live Site');
+
+const preloadImage = (src) => new Promise((resolve) => {
+  const img = new Image();
+  img.onload = img.onerror = resolve;
+  img.src = src;
+});
+
+function balanceColumns(items, offsets) {
+  const heights = offsets.map(([, h]) => h);
+  const cols = offsets.map(() => []);
+  items.forEach((item) => {
+    const i = heights.indexOf(Math.min(...heights));
+    cols[i].push(item);
+    heights[i] += item.h / item.w + ARCHIVE_GAP;
+  });
+  return cols;
+}
+
+const ParticleScene = lazy(() => import('./components/ParticleScene'));
+
+// ============ APP ============
+export default function App() {
+  const [loading, setLoading] = useState(true);
+  const [loadProgress, completeStep] = usePreloader(LOAD_STEPS);
+  const [view, setView] = useState('home');
+  const [transitionState, setTransitionState] = useState('entering');
+  const [hoveredProject, setHoveredProject] = useState(null);
+  const isDesktop = useMediaQuery('(min-width: 768px)');
+
+  const viewRef = useRef(view);
+  const sceneRef = useRef(0);
+  const transitionRef = useRef(transitionState);
+
+  useEffect(() => { viewRef.current = view; }, [view]);
+  useEffect(() => { transitionRef.current = transitionState; }, [transitionState]);
+
+  // --- Preloader: fonts + 3D scene + key images ---
+  useEffect(() => {
+    document.fonts.ready.then(() => completeStep('fonts'));
+    Promise.all(PRELOAD_IMAGES.map(preloadImage)).then(() => completeStep('images'));
+  }, [completeStep]);
+
+  const onSceneReady = useCallback(() => completeStep('scene'), [completeStep]);
+  const onLoaded = useCallback(() => {
+    setLoading(false);
+    setTransitionState('idle');
+  }, []);
+
+  // --- Scroll Reveal ---
+  useEffect(() => {
+    if (loading || transitionState !== 'idle') return;
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          io.unobserve(entry.target);
+        }
+      }),
+      { threshold: 0.1, rootMargin: '0px 0px -100px 0px' }
+    );
+    document.querySelectorAll('.reveal:not(.is-visible)').forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [loading, view, transitionState, isDesktop]);
+
+  // --- Scene Tracker ---
+  useEffect(() => {
+    if (loading || view !== 'home') return;
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => {
+        if (e.isIntersecting) sceneRef.current = Number(e.target.dataset.scene);
+      }),
+      { rootMargin: '-45% 0px -45% 0px' }
+    );
+    document.querySelectorAll('[data-scene]').forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [loading, view]);
+
+  // --- Navigation ---
+  const navigateTo = (targetView, sectionId = null) => {
+    if (transitionState !== 'idle') return;
+
+    if (view === targetView) {
+      if (sectionId) document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
+      else window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    setTransitionState('exiting');
+    setTimeout(() => {
+      // Point the particles straight at the destination so they don't replay every shape on the way
+      sceneRef.current = SECTION_SCENE[sectionId] ?? 0;
+      setView(targetView);
+      window.scrollTo(0, 0);
+      setTransitionState('entering');
+      setTimeout(() => {
+        setTransitionState('idle');
+        if (sectionId) {
+          // Jump (not smooth-scroll) while the page fades in, so no sections fly past
+          requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView());
+        }
+      }, 100);
+    }, PAGE_EXIT_MS);
+  };
+
+  const preview =
+    view === 'home' && hoveredProject
+      ? PROJECTS.find((p) => p.id === hoveredProject) ?? null
+      : null;
+
+  const archiveOffsets = ARCHIVE_OFFSET[isDesktop ? 3 : 2];
+  const archiveCols = balanceColumns(ARCHIVE, archiveOffsets);
+
+  return (
+    <div className="min-h-screen bg-[#030303] text-[#a3a3a3] font-sans overflow-x-hidden selection:bg-air selection:text-black">
+      <Cursor preview={preview} />
+      <Suspense fallback={null}>
+        <ParticleScene sceneRef={sceneRef} viewRef={viewRef} transitionRef={transitionRef} onReady={onSceneReady} />
+      </Suspense>
+      <div className="grain" aria-hidden="true" />
+
+      <Preloader progress={loadProgress} visible={loading} onDone={onLoaded} />
+
+      {/* NAVIGATION */}
+      <nav className={`fixed top-0 left-0 w-full z-[60] p-6 md:p-12 flex justify-between items-center mix-blend-difference text-white transition-opacity duration-1000 ${loading ? 'opacity-0' : 'opacity-100'}`}>
+        <button onClick={() => navigateTo('home')} aria-label="earth. — home" className="interactive text-xl md:text-2xl hover:opacity-50 transition-opacity">
+          <Logo />
+        </button>
+        <div className="flex gap-6 text-[10px] tracking-[0.2em] uppercase font-light">
+          <button onClick={() => navigateTo('about')} className="interactive hover:opacity-50 transition-opacity">About</button>
+          <button onClick={() => navigateTo('home', 'work')} className="interactive hover:opacity-50 transition-opacity">Work</button>
+          <button onClick={() => navigateTo('home', 'contact')} className="interactive hover:opacity-50 transition-opacity">Contact</button>
+        </div>
+      </nav>
+
+      {/* MAIN */}
+      <main className="relative z-10 perspective-wrapper">
+        <div className={`page-fade ${transitionState}`}>
+
+          {/* ================= HOME ================= */}
+          {view === 'home' && (
+            <div className="flex flex-col w-full">
+
+              {/* HERO — Scene 0: Dotted Earth */}
+              <section data-scene="0" className="relative h-svh w-full flex flex-col items-center justify-center px-4 text-center pointer-events-none">
+                <div className="reveal scrim z-10 max-w-4xl flex flex-col items-center gap-4">
+                  <h1 className="font-serif italic text-[6.5vw] sm:text-[5vw] md:text-5xl lg:text-7xl tracking-[0.02em] text-white leading-tight whitespace-nowrap">
+                    <SplitWords text="Chawaphong Khunsoongnoen" delay={150} />
+                  </h1>
+                  <p className="mt-4 text-[10px] md:text-xs tracking-[0.3em] uppercase font-light text-[#888]">
+                    <SplitWords text="Creative & Developer" delay={500} step={60} />
+                  </p>
+                </div>
+                <div className="absolute bottom-16 text-[9px] tracking-[0.3em] text-[#444] uppercase animate-pulse">
+                  Scroll to discover
+                </div>
+              </section>
+
+              {/* APPROACH — Scene 1: Paper Plane */}
+              <section data-scene="1" className="py-32 md:py-48 px-6 md:px-12 lg:px-24 border-t border-[#111]">
+                <div className="reveal scrim max-w-4xl mx-auto flex flex-col md:flex-row gap-12 md:gap-24">
+                  <span className="shrink-0 text-[10px] tracking-[0.2em] uppercase text-[#555]">01 / Approach</span>
+                  <div className="flex flex-col items-start">
+                    <p className="mb-8 font-serif text-3xl md:text-5xl text-white leading-tight font-light">
+                      <SplitWords text="Designing with intention." />
+                      <br />
+                      <SplitWords text="Refining complexity into" delay={300} />
+                      <br />
+                      <span className="italic text-[#777] whitespace-nowrap">
+                        <SplitWords text="pure simplicity." delay={600} />
+                      </span>
+                    </p>
+                    <button onClick={() => navigateTo('about')} className="interactive inline-flex items-center gap-2 pb-1 text-[10px] tracking-[0.2em] uppercase text-[#777] hover:text-white border-b border-[#333] hover:border-white transition-colors">
+                      Discover More <ArrowUpRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              {/* WORK — Scene 2: </> */}
+              <section data-scene="2" id="work" className="py-32 md:py-48 px-6 md:px-12 lg:px-24 border-t border-[#111]">
+                <div className="reveal scrim max-w-4xl mx-auto flex flex-col md:flex-row gap-12 md:gap-24">
+                  <span className="shrink-0 text-[10px] tracking-[0.2em] uppercase text-[#555]">02 / Selected Work</span>
+                  <div className="flex flex-col w-full border-t border-[#111]">
+                    {PROJECTS.map((project, i) => {
+                      const Row = project.url ? 'a' : 'div';
+                      const linkProps = project.url
+                        ? { href: project.url, target: '_blank', rel: 'noopener noreferrer' }
+                        : {};
+                      return (
+                        <div key={project.id} className="reveal" style={{ transitionDelay: `${i * 100}ms` }}>
+                          <Row
+                            {...linkProps}
+                            onMouseEnter={() => setHoveredProject(project.id)}
+                            onMouseLeave={() => setHoveredProject(null)}
+                            className={`${project.url ? 'interactive' : ''} group flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-8 py-8 md:py-10 border-b border-[#111] hover:border-[#555] transition-colors`}
+                          >
+                            <div className="flex items-baseline gap-6 md:gap-12">
+                              <span className="text-[10px] tracking-widest text-[#555] group-hover:text-white transition-colors">{project.id}</span>
+                              <div className="group-hover:translate-x-4 transition-transform duration-500">
+                                <h3 className="font-serif text-xl md:text-3xl text-[#aaa] group-hover:text-white transition-colors duration-500">
+                                  {project.title}
+                                </h3>
+                                {/* Desktop shows this in the hover card instead */}
+                                <p className="md:hidden mt-2 max-w-md text-xs font-light leading-relaxed text-[#666]">
+                                  {project.description}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="shrink-0 flex items-center gap-4 pl-10 md:pl-0 text-[10px] tracking-[0.2em] uppercase text-[#555] group-hover:text-white transition-colors">
+                              <span>{project.category}</span>
+                              {project.url ? (
+                                <span className="inline-flex items-center gap-1 text-[#444] group-hover:text-tea transition-colors">
+                                  {linkLabel(project.url)}
+                                  <ArrowUpRight className="w-3 h-3 transition-transform duration-500 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                                </span>
+                              ) : (
+                                <span className="text-air">In progress</span>
+                              )}
+                            </div>
+                          </Row>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
+
+              {/* CONTACT — Scene 3: 35mm Lens */}
+              <section data-scene="3" id="contact" className="relative w-full py-32 md:py-48 px-6 md:px-12 lg:px-24 border-t border-[#111] flex flex-col items-center justify-center text-center">
+                <div className="reveal scrim max-w-2xl mx-auto flex flex-col items-center">
+                  <span className="mb-12 text-[10px] tracking-[0.2em] uppercase text-[#555]">03 / Connect</span>
+                  <h2 className="mb-16 font-serif text-4xl md:text-5xl text-white font-light leading-tight">
+                    <SplitWords text="Ready to collaborate?" />
+                    <br />
+                    <span className="italic text-[#777]">
+                      <SplitWords text="Let's build something great." delay={350} />
+                    </span>
+                  </h2>
+
+                  <div className="flex flex-col gap-6 text-sm md:text-base tracking-widest uppercase font-light">
+                    <a href={`mailto:${CONTACT.email}`} className="interactive pb-2 text-[#aaa] hover:text-white border-b border-[#333] hover:border-white transition-colors">
+                      {CONTACT.email}
+                    </a>
+                    <a href={`tel:${CONTACT.phoneHref}`} className="interactive pb-2 text-[#aaa] hover:text-white border-b border-[#333] hover:border-white transition-colors">
+                      TH {CONTACT.phoneDisplay}
+                    </a>
+                  </div>
+
+                  <div className="mt-16 flex gap-8 text-[10px] uppercase tracking-[0.2em] text-[#555]">
+                    <a href={CONTACT.instagram} target="_blank" rel="noopener noreferrer" className="interactive hover:text-white transition-colors">Instagram</a>
+                    <a href={CONTACT.github} target="_blank" rel="noopener noreferrer" className="interactive hover:text-white transition-colors">GitHub</a>
+                  </div>
+                </div>
+              </section>
+
+              {/* FOOTER */}
+              <footer className="relative w-full py-8 px-6 md:px-12 flex flex-col md:flex-row justify-between items-center gap-4 text-[9px] uppercase tracking-widest text-[#444] border-t border-[#111]">
+                <div>© {YEAR} — Crafted with intent.</div>
+                <div>Local time — Saraburi, TH · <LocalTime /></div>
+              </footer>
+            </div>
+          )}
+
+          {/* ================= ABOUT — Scene 4: Graduation Cap ================= */}
+          {view === 'about' && (
+            <div className="w-full flex flex-col pt-32 pb-24">
+
+              <section className="w-full max-w-7xl mx-auto px-6 md:px-12 lg:px-24 grid grid-cols-1 md:grid-cols-12 gap-12 items-start">
+                <div className="reveal md:col-span-5">
+                  <div className="w-full aspect-[3/4] overflow-hidden bg-[#111]">
+                    <img
+                      src="/professional.jpg"
+                      alt="Chawaphong Khunsoongnoen"
+                      className="profile-photo w-full h-full object-cover opacity-80"
+                      onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=800'; }}
+                    />
+                  </div>
+                </div>
+
+                <div className="reveal scrim md:col-span-7 flex flex-col gap-12 pt-8 md:pt-16">
+                  <h1 className="font-serif text-5xl md:text-7xl text-white leading-tight font-light">
+                    <SplitWords text="Code &" delay={100} />
+                    <br />
+                    <SplitWords text="Aesthetics." delay={300} />
+                  </h1>
+
+                  <div className="max-w-lg flex flex-col gap-6 text-sm font-light text-[#888] leading-relaxed">
+                    <p>
+                      <span className="font-serif italic text-lg text-white">Chawaphong on paper, Earth to everyone else.</span>{' '}
+                      I'm a Frontend Developer and Instructor based in Thailand, shaped by two very different worlds: the discipline of the Navaminda Kasatriyadhiraj Royal Air Force Academy (NKRAFA) and a deep curiosity for software engineering.
+                    </p>
+                    <p>
+                      To expand my knowledge, I pursued a Master's degree in Software Engineering at DePaul University in Chicago. Studying abroad gave me a much wider perspective on technology, teamwork, and user-centric design.
+                    </p>
+                    <p>
+                      Today, I combine my structured mindset with creative coding. I focus on building clean, fast, and visually appealing web applications, always believing that good design should feel natural and effortless for the user.
+                    </p>
+                  </div>
+
+                  <div className="mt-8 pt-8 border-t border-[#111] flex flex-col gap-6">
+                    <span className="text-[10px] tracking-[0.2em] uppercase text-[#555]">Core Stack</span>
+                    {SKILL_GROUPS.map((group) => (
+                      <div key={group.label} className="flex flex-col sm:flex-row gap-2 sm:gap-6">
+                        <span className="sm:w-40 shrink-0 text-[9px] tracking-[0.2em] uppercase text-air/60 sm:pt-0.5">{group.label}</span>
+                        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs font-light text-[#aaa]">
+                          {group.items.map((skill) => <span key={skill}>{skill}</span>)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <a href={RESUME_URL} download className="interactive mt-8 inline-flex items-center gap-2 text-[10px] tracking-[0.2em] uppercase text-white hover:text-[#777] transition-colors">
+                    Download Resume <ArrowRight className="w-4 h-4" />
+                  </a>
+                </div>
+              </section>
+
+              {/* VISUAL ARCHIVE */}
+              <section className="relative mt-20 md:mt-32 w-full pt-16 md:pt-32 pb-16 border-t border-[#111] overflow-hidden">
+                <div className="reveal relative z-10 mb-10 md:mb-20 px-6 text-center">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#555]">Visual Archive</span>
+                  <h2 className="mt-4 font-serif text-2xl md:text-3xl text-white font-light">
+                    <SplitWords text="Structured memories." delay={150} />
+                  </h2>
+                </div>
+
+                <div className="max-w-7xl mx-auto px-4 md:px-12 lg:px-24">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-10">
+                    {archiveCols.map((col, i) => (
+                      <div key={i} className={`flex flex-col gap-5 md:gap-10 ${archiveOffsets[i][0]}`}>
+                        {col.map((item) => <TiltCard key={item.src} {...item} />)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="reveal mt-16 md:mt-20 px-6 flex justify-center w-full">
+                  <button
+                    onClick={() => navigateTo('home')}
+                    className="interactive inline-flex items-center gap-2 pb-1 text-[10px] uppercase tracking-[0.2em] font-light text-[#888] hover:text-white hover:-translate-x-2 border-b border-[#333] hover:border-white transition-all"
+                  >
+                    <ArrowRight className="w-3 h-3 rotate-180" /> Back to home
+                  </button>
+                </div>
+              </section>
+            </div>
+          )}
+
+        </div>
+      </main>
+    </div>
+  );
+}
