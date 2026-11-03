@@ -23,4 +23,4 @@ Every push to `main` builds the site and uploads `dist/` over FTP — see [`.git
 
 `VITE_SITE_URL` in `.env` sets the domain used for SEO tags, `robots.txt` and `sitemap.xml`.
 
-Manual fallback: `npm run build`, then upload everything inside `dist/` — including the hidden `.htaccess` — to `public_html/`.
+Manual fallback: `npm run build`, then upload everything inside `dist/` — including the hidden `.htaccess` — to `httpdocs/` (Plesk).

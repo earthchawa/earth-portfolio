@@ -2,8 +2,9 @@
 #
 # Setup (GitHub → Settings → Secrets and variables → Actions):
 #   Secrets:   FTP_SERVER, FTP_USERNAME, FTP_PASSWORD
-#   Variable:  FTP_SERVER_DIR  (optional, default ./public_html/ —
-#              DirectAdmin accounts often need ./domains/earthcha.com/public_html/)
+#              (Plesk: server sgsv4.hostatom.com, user/password from
+#               Websites & Domains → Hosting & DNS → Web Hosting Access)
+#   Variable:  FTP_SERVER_DIR  (optional, default ./httpdocs/ — Plesk's web root)
 # Until the secrets exist, the build still runs but the upload step is skipped.
 
 name: Deploy to Hostatom
@@ -43,7 +44,7 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftps
           local-dir: ./dist/
-          server-dir: ${{ vars.FTP_SERVER_DIR || './public_html/' }}
+          server-dir: ${{ vars.FTP_SERVER_DIR || './httpdocs/' }}
 
       - name: FTP not configured yet
         if: env.FTP_SERVER == ''

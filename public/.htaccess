@@ -1,5 +1,5 @@
 # earthcha.com — Apache / LiteSpeed config for Hostatom
-# Upload the contents of dist/ (including this file) into public_html/
+# Upload the contents of dist/ (including this file) into httpdocs/ (Plesk)
 
 RewriteEngine On
 
