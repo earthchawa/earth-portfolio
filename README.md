@@ -19,6 +19,8 @@ npm run dev
 
 ## Deploy (Hostatom)
 
-1. Set `VITE_SITE_URL` in `.env` (used for SEO tags, `robots.txt` and `sitemap.xml`).
-2. `npm run build`
-3. Upload everything inside `dist/` — including the hidden `.htaccess` — to `public_html/`.
+Every push to `main` builds the site and uploads `dist/` over FTP — see [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) for the secrets it needs.
+
+`VITE_SITE_URL` in `.env` sets the domain used for SEO tags, `robots.txt` and `sitemap.xml`.
+
+Manual fallback: `npm run build`, then upload everything inside `dist/` — including the hidden `.htaccess` — to `public_html/`.
