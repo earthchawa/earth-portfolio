@@ -387,7 +387,7 @@ export default function App() {
                       I'm a Frontend Developer and Instructor based in Thailand, shaped by two very different worlds: the discipline of the Navaminda Kasatriyadhiraj Royal Air Force Academy (NKRAFA) and a deep curiosity for software engineering.
                     </p>
                     <p>
-                      To expand my knowledge, I pursued a Master's degree in Software Engineering at DePaul University in Chicago. Studying abroad gave me a much wider perspective on technology, teamwork, and user-centric design.
+                      After earning my Bachelor's degree in Computer Science at NKRAFA, I pursued a Master's degree in Software Engineering at DePaul University in Chicago to expand my knowledge. Studying abroad gave me a much wider perspective on technology, teamwork, and user-centric design.
                     </p>
                     <p>
                       Today, I combine my structured mindset with creative coding. I focus on building clean, fast, and visually appealing web applications, always believing that good design should feel natural and effortless for the user.
