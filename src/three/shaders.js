@@ -3,6 +3,7 @@ export const vertexShader = /* glsl */ `
   uniform float uWeights[5]; // how much of each shape (sums to 1)
   uniform float uTransit;    // 0 = settled on one shape, up to ~1 mid-morph
   uniform float uWarp;
+  uniform float uDefocus;   // 0 sharp → 1 out-of-focus (lens mini-game)
   uniform float uSize;
   uniform float uPixelRatio;
   uniform vec3 uColor;
@@ -40,6 +41,10 @@ export const vertexShader = /* glsl */ `
     p.y += cos(uTime * 0.6 + aRandom * 30.0) * 0.025;
     p.z += uWarp * aRandom * 6.0;
 
+    // Out of focus: particles drift off their spot and swell into soft bokeh
+    vec3 drift = normalize(vec3(sin(aRandom * 91.0), cos(aRandom * 47.0), sin(aRandom * 23.0 + 1.0)));
+    p += drift * uDefocus * (0.15 + aRandom * 0.35);
+
     float globeW = smoothstep(0.5, 1.0, uWeights[0]);
     float alpha = 1.0;
     float size = 1.0;
@@ -57,6 +62,8 @@ export const vertexShader = /* glsl */ `
 
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mv;
+    size *= 1.0 + uDefocus * 2.2;
+    alpha *= 1.0 - uDefocus * 0.6;
     gl_PointSize = uSize * uPixelRatio * (0.4 + aRandom) * size / max(-mv.z, 0.1);
 
     vAlpha = (0.3 + aRandom * 0.7) * alpha * smoothstep(0.5, 3.0, -mv.z);

@@ -163,3 +163,31 @@ body:has(.interactive:hover) .cursor-dot {
   .archive-img,
   .profile-photo { filter: grayscale(0.3); opacity: 0.9; }
 }
+/* ---------- Mini-games: hints, captions, shutter ---------- */
+.play-hint { color: #4a4a4a; }
+.play-hint::before { content: '◦ '; color: var(--color-tea); opacity: 0.7; }
+
+@keyframes play-caption {
+  0% { opacity: 0; transform: translate(-50%, 12px); filter: blur(4px); }
+  15%, 75% { opacity: 1; transform: translate(-50%, 0); filter: none; }
+  100% { opacity: 0; transform: translate(-50%, -6px); }
+}
+.play-caption {
+  transform: translateX(-50%);
+  text-shadow: 0 0 24px rgba(3, 3, 3, 0.95);
+  animation: play-caption 3s var(--ease-out) forwards;
+}
+
+@keyframes shutter-flash { from { opacity: 0.55; } to { opacity: 0; } }
+.shutter-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 66;
+  pointer-events: none;
+  background: #fff;
+  animation: shutter-flash 0.45s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .play-caption { animation: none; }
+}

@@ -125,6 +125,7 @@ export default function App() {
   const [transitionState, setTransitionState] = useState('entering');
   const [hoveredProject, setHoveredProject] = useState(null);
   const isDesktop = useMediaQuery('(min-width: 768px)');
+  const [playMsg, setPlayMsg] = useState(null); // mini-game caption { text, flash, key }
 
   const viewRef = useRef(view);
   const sceneRef = useRef(0);
@@ -140,6 +141,13 @@ export default function App() {
   }, [completeStep]);
 
   const onSceneReady = useCallback(() => completeStep('scene'), [completeStep]);
+  const onPlay = useCallback((e) => setPlayMsg({ ...e, key: performance.now() }), []);
+
+  useEffect(() => {
+    if (!playMsg) return undefined;
+    const timer = setTimeout(() => setPlayMsg(null), 3000);
+    return () => clearTimeout(timer);
+  }, [playMsg]);
   const onLoaded = useCallback(() => {
     setLoading(false);
     setTransitionState('idle');
@@ -213,9 +221,17 @@ export default function App() {
     <div className="min-h-screen bg-[#030303] text-[#a3a3a3] font-sans overflow-x-hidden selection:bg-air selection:text-black">
       <Cursor preview={preview} />
       <Suspense fallback={null}>
-        <ParticleScene sceneRef={sceneRef} viewRef={viewRef} transitionRef={transitionRef} onReady={onSceneReady} />
+        <ParticleScene sceneRef={sceneRef} viewRef={viewRef} transitionRef={transitionRef} onReady={onSceneReady} onPlay={onPlay} />
       </Suspense>
       <div className="grain" aria-hidden="true" />
+
+      {/* Mini-game moments: a quiet caption (and a shutter flash for the lens) */}
+      {playMsg?.flash && <div key={`f${playMsg.key}`} className="shutter-flash" aria-hidden="true" />}
+      {playMsg?.text && (
+        <p key={playMsg.key} role="status" className="play-caption fixed z-[65] bottom-8 left-1/2 px-6 w-max max-w-[90vw] text-center font-serif italic text-lg md:text-xl text-white/85 pointer-events-none">
+          {playMsg.text}
+        </p>
+      )}
 
       <Preloader progress={loadProgress} visible={loading} onDone={onLoaded} />
 
@@ -240,7 +256,7 @@ export default function App() {
             <div className="flex flex-col w-full">
 
               {/* HERO — Scene 0: Dotted Earth */}
-              <section data-scene="0" className="relative h-svh w-full flex flex-col items-center justify-center px-4 text-center pointer-events-none">
+              <section data-scene="0" className="relative h-svh w-full flex flex-col items-center justify-center px-4 text-center touch-pan-y select-none">
                 <div className="reveal scrim z-10 max-w-4xl flex flex-col items-center gap-4">
                   <h1 className="font-serif italic text-[6.5vw] sm:text-[5vw] md:text-5xl lg:text-7xl tracking-[0.02em] text-white leading-tight whitespace-nowrap">
                     <SplitWords text="Chawaphong Khunsoongnoen" delay={150} />
@@ -249,13 +265,14 @@ export default function App() {
                     <SplitWords text="Creative & Developer" delay={500} step={60} />
                   </p>
                 </div>
-                <div className="absolute bottom-16 text-[9px] tracking-[0.3em] text-[#444] uppercase animate-pulse">
-                  Scroll to discover
+                <div className="absolute bottom-12 flex flex-col items-center gap-3 text-[9px] tracking-[0.3em] uppercase">
+                  <span className="play-hint">{isDesktop ? 'Drag to spin · click the orange dot' : 'Swipe to spin · tap the orange dot'}</span>
+                  <span className="text-[#444] animate-pulse">Scroll to discover</span>
                 </div>
               </section>
 
               {/* APPROACH — Scene 1: Paper Plane */}
-              <section data-scene="1" className="py-32 md:py-48 px-6 md:px-12 lg:px-24 border-t border-[#111]">
+              <section data-scene="1" className="relative py-32 md:py-48 px-6 md:px-12 lg:px-24 border-t border-[#111]">
                 <div className="reveal scrim max-w-4xl mx-auto flex flex-col md:flex-row gap-12 md:gap-24">
                   <span className="shrink-0 text-[10px] tracking-[0.2em] uppercase text-[#555]">01 / Approach</span>
                   <div className="flex flex-col items-start">
@@ -273,6 +290,9 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+                <p className="play-hint absolute bottom-10 right-6 md:right-12 lg:right-24 text-[9px] tracking-[0.3em] uppercase">
+                  {isDesktop ? 'Move your cursor — fly the plane through the rings' : 'Tap around — the plane follows'}
+                </p>
               </section>
 
               {/* WORK — Scene 2: </> */}
@@ -352,6 +372,10 @@ export default function App() {
                     <a href={CONTACT.instagram} target="_blank" rel="noopener noreferrer" className="interactive hover:text-white transition-colors">Instagram</a>
                     <a href={CONTACT.github} target="_blank" rel="noopener noreferrer" className="interactive hover:text-white transition-colors">GitHub</a>
                   </div>
+
+                  <p className="play-hint mt-16 text-[9px] tracking-[0.3em] uppercase">
+                    {isDesktop ? 'Aim at the lens to focus · click to take a shot' : 'Tap anywhere to take a shot'}
+                  </p>
                 </div>
               </section>
 
@@ -414,6 +438,9 @@ export default function App() {
                   <a href={RESUME_URL} download className="interactive mt-8 inline-flex items-center gap-2 text-[10px] tracking-[0.2em] uppercase text-white hover:text-[#777] transition-colors">
                     Download Resume <ArrowRight className="w-4 h-4" />
                   </a>
+                  <p className="play-hint -mt-6 text-[9px] tracking-[0.3em] uppercase">
+                    {isDesktop ? 'Psst — click the cap to toss it ↗' : 'Psst — tap the cap up top'}
+                  </p>
                 </div>
               </section>
 

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { createShapes, loadLandMask } from '../three/shapes';
 import { vertexShader, fragmentShader } from '../three/shaders';
+import { createMinigames } from '../three/minigames';
 
 const TAU = Math.PI * 2;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -37,8 +38,11 @@ const LAYOUT = {
   ],
 };
 
-export default function ParticleScene({ sceneRef, viewRef, transitionRef, onReady }) {
+// onPlay({ text?, flash? }): mini-game moments for the page to caption
+export default function ParticleScene({ sceneRef, viewRef, transitionRef, onReady, onPlay }) {
   const mountRef = useRef(null);
+  const onPlayRef = useRef(onPlay);
+  useEffect(() => { onPlayRef.current = onPlay; });
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -73,6 +77,7 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
         uWeights: { value: [1, 0, 0, 0, 0] },
         uTransit: { value: 0 },
         uWarp: { value: 0 },
+        uDefocus: { value: 0 },
         uOpacity: { value: 0 },
         uSize: { value: isMobile() ? 18 : 22 },
         uPixelRatio: { value: renderer.getPixelRatio() },
@@ -83,6 +88,16 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
+    });
+
+    // Points live inside a rig so the mini-games can hop/scale them
+    // without fighting the layout easing below
+    const rig = new THREE.Group();
+    scene.add(rig);
+    const play = createMinigames({
+      scene, camera, rig, material, reduceMotion,
+      colors: { accent: CONFIG.accent, air: CONFIG.air },
+      onPlay: (e) => onPlayRef.current?.(e),
     });
 
     // --- Build particles after the world map loads ---
@@ -106,7 +121,8 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
 
       points = new THREE.Points(geometry, material);
       points.frustumCulled = false;
-      scene.add(points);
+      rig.add(points);
+      play.setPoints(points);
       onReady?.();
     });
 
@@ -137,14 +153,19 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
     const start = performance.now();
     let spin = CONFIG.globeStartSpin;
     let rafId;
+    let last = start;
 
     const tick = () => {
       rafId = requestAnimationFrame(tick);
-      const t = (performance.now() - start) / 1000;
+      const now = performance.now();
+      const t = (now - start) / 1000;
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
       const u = material.uniforms;
       const isHome = viewRef.current === 'home';
       const target = isHome ? sceneRef.current : 4;
-      const L = LAYOUT[isMobile() ? 'mobile' : 'desktop'][target];
+      const L = play.layout(LAYOUT[isMobile() ? 'mobile' : 'desktop'][target], { target, isHome }, dt);
+      const moveSpeed = L.speed ?? CONFIG.layoutSpeed;
 
       u.uTime.value = reduceMotion ? 0 : t;
       const weights = u.uWeights.value;
@@ -158,7 +179,8 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
       if (points) {
         const globeW = weights[0];
 
-        if (target === 0 && !reduceMotion) spin += CONFIG.globeSpin;
+        const played = play.spin(spin, target, CONFIG.globeSpin);
+        if (played !== null) spin = played;
         else spin = lerp(spin, Math.round(spin / TAU) * TAU, 0.05);
 
         tilt.x = lerp(tilt.x, mouse.x, 0.05);
@@ -166,10 +188,11 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
         points.rotation.y = spin + tilt.x * 0.6;
         points.rotation.x = tilt.y * 0.4 + CONFIG.globeTilt * globeW;
 
-        points.position.x = lerp(points.position.x, L.x, CONFIG.layoutSpeed);
-        points.position.y = lerp(points.position.y, L.y, CONFIG.layoutSpeed);
+        points.position.x = lerp(points.position.x, L.x, moveSpeed);
+        points.position.y = lerp(points.position.y, L.y, moveSpeed);
         points.scale.setScalar(lerp(points.scale.x, L.s, CONFIG.layoutSpeed));
       }
+      play.afterTransform(dt);
 
       starMat.opacity = lerp(starMat.opacity, isHome ? 0.35 + Math.sin(t * 1.5) * 0.15 : 0.1, 0.05);
       stars.rotation.y = t * 0.01;
@@ -191,6 +214,7 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
       cancelAnimationFrame(rafId);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('resize', onResize);
+      play.dispose();
       geometry?.dispose();
       material.dispose();
       starGeo.dispose();
