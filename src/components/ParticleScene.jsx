@@ -37,7 +37,8 @@ const LAYOUT = {
   ],
 };
 
-export default function ParticleScene({ sceneRef, viewRef, transitionRef, onReady }) {
+// fxRef: performance.now() of the last game event (rank up, cheat code) — the particles burst outward for a moment
+export default function ParticleScene({ sceneRef, viewRef, transitionRef, fxRef, onReady }) {
   const mountRef = useRef(null);
 
   useEffect(() => {
@@ -153,7 +154,8 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
       }
       u.uTransit.value = Math.min(1, (1 - Math.max(...weights)) * 2);
       u.uOpacity.value = lerp(u.uOpacity.value, L.o, CONFIG.layoutSpeed);
-      u.uWarp.value = lerp(u.uWarp.value, transitionRef.current === 'exiting' && !reduceMotion ? 1 : 0, 0.08);
+      const burst = fxRef && performance.now() - fxRef.current < 450;
+      u.uWarp.value = lerp(u.uWarp.value, (transitionRef.current === 'exiting' || burst) && !reduceMotion ? 1 : 0, 0.08);
 
       if (points) {
         const globeW = weights[0];
@@ -198,7 +200,7 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
       renderer.dispose();
       mount.removeChild(renderer.domElement);
     };
-  }, [sceneRef, viewRef, transitionRef, onReady]);
+  }, [sceneRef, viewRef, transitionRef, fxRef, onReady]);
 
   return <div ref={mountRef} className="fixed inset-0 z-0 pointer-events-none" aria-hidden="true" />;
 }

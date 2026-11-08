@@ -8,6 +8,9 @@ import TiltCard from './components/TiltCard';
 import SplitWords from './components/SplitWords';
 import LocalTime from './components/LocalTime';
 import useMediaQuery from './hooks/useMediaQuery';
+import GameHUD from './components/GameHUD';
+import useGame from './game/useGame';
+import { KONAMI } from './game/achievements';
 
 // ============ DATA ============
 const CONTACT = {
@@ -20,6 +23,16 @@ const CONTACT = {
 
 const RESUME_URL = '/chawaphong-resume-2026.pdf';
 
+// About page "character sheet"
+const PLAYER_CARD = [
+  { label: 'Class', value: 'Developer · Lecturer' },
+  { label: 'Origin', value: 'NKRAFA — BS Computer Science' },
+  { label: 'Upgrade', value: 'DePaul — MS Software Eng.' },
+  { label: 'Home Base', value: 'Saraburi, TH' },
+  { label: 'Guild', value: 'MadDuck · LORDNINE' },
+  { label: 'Passive Buff', value: 'Cha Yen · +10 focus' },
+];
+
 const SKILL_GROUPS = [
   { label: 'Frontend', items: ['HTML / CSS', 'JavaScript (ES6+)', 'React', 'Tailwind CSS', 'Three.js / WebGL', 'PWA'] },
   { label: 'Backend & Automation', items: ['Node.js', 'Python', 'Java', 'Google Apps Script', 'GitHub Actions'] },
@@ -29,14 +42,16 @@ const SKILL_GROUPS = [
 
 // url: null = not public yet (row shows "In progress", no link)
 // image: null = no hover preview
+// phases: optional quest progress, shown as pips + "Phase x/y"
 const PROJECTS = [
   {
     id: '01',
-    title: 'NKRAFA AI Classroom',
-    category: 'AI · EdTech',
-    description: 'An AI-powered classroom platform for air cadets at NKRAFA.',
-    url: null,
+    title: 'V.E.H.A.',
+    category: 'EdTech · Full-stack',
+    description: 'Virtual Educational Hangar for Air-cadets — NKRAFA\'s self-hosted online classroom: course materials, assignments with Thai-aware similarity checks, a weighted gradebook, and online quizzes with anti-cheat and Safe Exam Browser support.',
+    url: 'https://github.com/earthchawa/nkrafa-ai-classroom',
     image: null,
+    phases: { done: 4, total: 5 },
   },
   {
     id: '02',
@@ -89,6 +104,7 @@ const ARCHIVE_OFFSET = {
 const ARCHIVE_GAP = 0.12; // gap + mobile caption, in column widths
 
 const SECTION_SCENE = { work: 2, contact: 3 };
+const SCENE_QUEST = { 1: 'approach', 2: 'work', 3: 'contact' };
 const LOAD_STEPS = ['fonts', 'scene', 'images'];
 const PRELOAD_IMAGES = ['/professional.jpg', ...PROJECTS.map((p) => p.image).filter(Boolean)];
 const PAGE_EXIT_MS = 800;
@@ -123,6 +139,14 @@ export default function App() {
   const [transitionState, setTransitionState] = useState('entering');
   const [hoveredProject, setHoveredProject] = useState(null);
   const isDesktop = useMediaQuery('(min-width: 768px)');
+  const [questOpen, setQuestOpen] = useState(false);
+  const [cheatFlash, setCheatFlash] = useState(0);
+
+  // Game layer: rank-ups make the particles burst
+  const fxRef = useRef(-1e9);
+  const game = useGame({ onLevelUp: () => { fxRef.current = performance.now(); } });
+  const { unlock, inspect } = game;
+  const logoClicks = useRef([]);
 
   const viewRef = useRef(view);
   const sceneRef = useRef(0);
@@ -141,7 +165,52 @@ export default function App() {
   const onLoaded = useCallback(() => {
     setLoading(false);
     setTransitionState('idle');
-  }, []);
+    unlock('boot');
+    if (new Date().getHours() < 5) unlock('nightowl');
+  }, [unlock]);
+
+  // --- Keyboard: Q toggles the quest log, plus the Konami code ---
+  useEffect(() => {
+    let pos = 0;
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      pos = key === KONAMI[pos] ? pos + 1 : key === KONAMI[0] ? 1 : 0;
+      if (pos === KONAMI.length) {
+        pos = 0;
+        fxRef.current = performance.now();
+        setCheatFlash((n) => n + 1);
+        unlock('konami');
+      } else if (key === 'q' && !loading) {
+        setQuestOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [unlock, loading]);
+
+  // e.timeStamp shares performance.now()'s clock
+  const onLogoClick = (e) => {
+    const now = e.timeStamp;
+    logoClicks.current = [...logoClicks.current.filter((t) => now - t < 2000), now];
+    if (logoClicks.current.length >= 5) {
+      logoClicks.current = [];
+      fxRef.current = now;
+      unlock('masher');
+    }
+    navigateTo('home');
+  };
+
+  // --- About page quests ---
+  useEffect(() => {
+    if (loading || view !== 'about' || transitionState !== 'idle') return undefined;
+    unlock('about');
+    const end = document.getElementById('archive-end');
+    if (!end) return undefined;
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) unlock('archive'); });
+    io.observe(end);
+    return () => io.disconnect();
+  }, [loading, view, transitionState, unlock]);
 
   // --- Scroll Reveal ---
   useEffect(() => {
@@ -164,13 +233,16 @@ export default function App() {
     if (loading || view !== 'home') return;
     const io = new IntersectionObserver(
       (entries) => entries.forEach((e) => {
-        if (e.isIntersecting) sceneRef.current = Number(e.target.dataset.scene);
+        if (!e.isIntersecting) return;
+        const scene = Number(e.target.dataset.scene);
+        sceneRef.current = scene;
+        if (SCENE_QUEST[scene]) unlock(SCENE_QUEST[scene]);
       }),
       { rootMargin: '-45% 0px -45% 0px' }
     );
     document.querySelectorAll('[data-scene]').forEach((el) => io.observe(el));
     return () => io.disconnect();
-  }, [loading, view]);
+  }, [loading, view, unlock]);
 
   // --- Navigation ---
   const navigateTo = (targetView, sectionId = null) => {
@@ -211,15 +283,18 @@ export default function App() {
     <div className="min-h-screen bg-[#030303] text-[#a3a3a3] font-sans overflow-x-hidden selection:bg-air selection:text-black">
       <Cursor preview={preview} />
       <Suspense fallback={null}>
-        <ParticleScene sceneRef={sceneRef} viewRef={viewRef} transitionRef={transitionRef} onReady={onSceneReady} />
+        <ParticleScene sceneRef={sceneRef} viewRef={viewRef} transitionRef={transitionRef} fxRef={fxRef} onReady={onSceneReady} />
       </Suspense>
       <div className="grain" aria-hidden="true" />
+      {cheatFlash > 0 && <div key={cheatFlash} className="cheat-flash" aria-hidden="true" />}
+
+      <GameHUD game={game} open={questOpen} setOpen={setQuestOpen} visible={!loading} />
 
       <Preloader progress={loadProgress} visible={loading} onDone={onLoaded} />
 
       {/* NAVIGATION */}
       <nav className={`fixed top-0 left-0 w-full z-[60] p-6 md:p-12 flex justify-between items-center mix-blend-difference text-white transition-opacity duration-1000 ${loading ? 'opacity-0' : 'opacity-100'}`}>
-        <button onClick={() => navigateTo('home')} aria-label="earth. — home" className="interactive text-xl md:text-2xl hover:opacity-50 transition-opacity">
+        <button onClick={onLogoClick} aria-label="earth. — home" className="interactive text-xl md:text-2xl hover:opacity-50 transition-opacity">
           <Logo />
         </button>
         <div className="flex gap-6 text-[10px] tracking-[0.2em] uppercase font-light">
@@ -287,8 +362,11 @@ export default function App() {
                         <div key={project.id} className="reveal" style={{ transitionDelay: `${i * 100}ms` }}>
                           <Row
                             {...linkProps}
-                            onMouseEnter={() => setHoveredProject(project.id)}
+                            onMouseEnter={() => { setHoveredProject(project.id); inspect(project.id, PROJECTS.length); }}
                             onMouseLeave={() => setHoveredProject(null)}
+                            onFocus={() => inspect(project.id, PROJECTS.length)}
+                            onTouchStart={() => inspect(project.id, PROJECTS.length)}
+                            onClick={project.url ? () => unlock('sidequest') : undefined}
                             className={`${project.url ? 'interactive' : ''} group flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-8 py-8 md:py-10 border-b border-[#111] hover:border-[#555] transition-colors`}
                           >
                             <div className="flex items-baseline gap-6 md:gap-12">
@@ -301,10 +379,25 @@ export default function App() {
                                 <p className="md:hidden mt-2 max-w-md text-xs font-light leading-relaxed text-[#666]">
                                   {project.description}
                                 </p>
+                                {project.phases && (
+                                  <div className="mt-3 flex items-center gap-3" aria-label={`Phase ${project.phases.done} of ${project.phases.total} complete`}>
+                                    <div className="flex gap-1">
+                                      {Array.from({ length: project.phases.total }, (_, n) => (
+                                        <span key={n} className={`phase-pip ${n < project.phases.done ? 'done' : ''}`} />
+                                      ))}
+                                    </div>
+                                    <span className="text-[9px] tracking-[0.2em] uppercase text-[#555]">
+                                      Phase {project.phases.done}/{project.phases.total}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <div className="shrink-0 flex items-center gap-4 pl-10 md:pl-0 text-[10px] tracking-[0.2em] uppercase text-[#555] group-hover:text-white transition-colors">
                               <span>{project.category}</span>
+                              {project.phases && project.phases.done < project.phases.total && (
+                                <span className="hidden md:inline text-air">In progress</span>
+                              )}
                               {project.url ? (
                                 <span className="inline-flex items-center gap-1 text-[#444] group-hover:text-tea transition-colors">
                                   {linkLabel(project.url)}
@@ -335,23 +428,23 @@ export default function App() {
                   </h2>
 
                   <div className="flex flex-col gap-6 text-sm md:text-base tracking-widest uppercase font-light">
-                    <a href={`mailto:${CONTACT.email}`} className="interactive pb-2 text-[#aaa] hover:text-white border-b border-[#333] hover:border-white transition-colors">
+                    <a href={`mailto:${CONTACT.email}`} onClick={() => unlock('party')} className="interactive pb-2 text-[#aaa] hover:text-white border-b border-[#333] hover:border-white transition-colors">
                       {CONTACT.email}
                     </a>
-                    <a href={`tel:${CONTACT.phoneHref}`} className="interactive pb-2 text-[#aaa] hover:text-white border-b border-[#333] hover:border-white transition-colors">
+                    <a href={`tel:${CONTACT.phoneHref}`} onClick={() => unlock('party')} className="interactive pb-2 text-[#aaa] hover:text-white border-b border-[#333] hover:border-white transition-colors">
                       TH {CONTACT.phoneDisplay}
                     </a>
                   </div>
 
                   <div className="mt-16 flex gap-8 text-[10px] uppercase tracking-[0.2em] text-[#555]">
-                    <a href={CONTACT.instagram} target="_blank" rel="noopener noreferrer" className="interactive hover:text-white transition-colors">Instagram</a>
-                    <a href={CONTACT.github} target="_blank" rel="noopener noreferrer" className="interactive hover:text-white transition-colors">GitHub</a>
+                    <a href={CONTACT.instagram} onClick={() => unlock('social')} target="_blank" rel="noopener noreferrer" className="interactive hover:text-white transition-colors">Instagram</a>
+                    <a href={CONTACT.github} onClick={() => unlock('social')} target="_blank" rel="noopener noreferrer" className="interactive hover:text-white transition-colors">GitHub</a>
                   </div>
                 </div>
               </section>
 
               {/* FOOTER */}
-              <footer className="relative w-full py-8 px-6 md:px-12 flex flex-col md:flex-row justify-between items-center gap-4 text-[9px] uppercase tracking-widest text-[#444] border-t border-[#111]">
+              <footer className="relative w-full pt-8 pb-28 md:pb-8 px-6 md:px-12 flex flex-col md:flex-row justify-between items-center gap-4 text-[9px] uppercase tracking-widest text-[#444] border-t border-[#111]">
                 <div>© {YEAR} — Crafted with intent.</div>
                 <div>Local time — Saraburi, TH · <LocalTime /></div>
               </footer>
@@ -394,8 +487,26 @@ export default function App() {
                     </p>
                   </div>
 
+                  {/* PLAYER CARD */}
                   <div className="mt-8 pt-8 border-t border-[#111] flex flex-col gap-6">
-                    <span className="text-[10px] tracking-[0.2em] uppercase text-[#555]">Core Stack</span>
+                    <div className="flex items-baseline justify-between gap-4">
+                      <span className="text-[10px] tracking-[0.2em] uppercase text-[#555]">Player Card</span>
+                      <button onClick={() => setQuestOpen(true)} className="interactive text-[9px] tracking-[0.2em] uppercase text-air/70 hover:text-air transition-colors">
+                        Your Lv {game.level.level} · Quest log
+                      </button>
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
+                      {PLAYER_CARD.map((stat) => (
+                        <div key={stat.label} className="flex flex-col gap-1">
+                          <dt className="text-[9px] tracking-[0.2em] uppercase text-tea/70">{stat.label}</dt>
+                          <dd className="text-xs font-light text-[#ccc]">{stat.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+
+                  <div className="pt-8 border-t border-[#111] flex flex-col gap-6">
+                    <span className="text-[10px] tracking-[0.2em] uppercase text-[#555]">Core Stack · Skill Tree</span>
                     {SKILL_GROUPS.map((group) => (
                       <div key={group.label} className="flex flex-col sm:flex-row gap-2 sm:gap-6">
                         <span className="sm:w-40 shrink-0 text-[9px] tracking-[0.2em] uppercase text-air/60 sm:pt-0.5">{group.label}</span>
@@ -406,7 +517,7 @@ export default function App() {
                     ))}
                   </div>
 
-                  <a href={RESUME_URL} download className="interactive mt-8 inline-flex items-center gap-2 text-[10px] tracking-[0.2em] uppercase text-white hover:text-[#777] transition-colors">
+                  <a href={RESUME_URL} download onClick={() => unlock('resume')} className="interactive mt-8 inline-flex items-center gap-2 text-[10px] tracking-[0.2em] uppercase text-white hover:text-[#777] transition-colors">
                     Download Resume <ArrowRight className="w-4 h-4" />
                   </a>
                 </div>
@@ -431,7 +542,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="reveal mt-16 md:mt-20 px-6 flex justify-center w-full">
+                <div id="archive-end" className="reveal mt-16 md:mt-20 px-6 pb-20 md:pb-0 flex justify-center w-full">
                   <button
                     onClick={() => navigateTo('home')}
                     className="interactive inline-flex items-center gap-2 pb-1 text-[10px] uppercase tracking-[0.2em] font-light text-[#888] hover:text-white hover:-translate-x-2 border-b border-[#333] hover:border-white transition-all"
