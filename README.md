@@ -8,7 +8,9 @@ Live at **[earthcha.com](https://earthcha.com)**
 
 - React 19 + Vite
 - Tailwind CSS v4
-- Three.js — one particle system that morphs between a dotted Earth, a paper plane, `</>`, a 35mm lens and a graduation cap as you scroll
+- Three.js — a flyable cartoon planet: visitors steer chibi Earth on a paper plane to landmarks that each open a card (about, education, projects, contact). A "Quick view" shows the same content without the game.
+
+Content lives in `src/world/data.js`; the 3D scene is in `src/world/` (`world.js` flight + camera, `planet.js`, `chibi.js`, `models.js`).
 
 ## Develop
 
