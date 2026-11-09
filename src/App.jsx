@@ -18,6 +18,38 @@ const CONTACT = {
 
 const RESUME_URL = '/chawaphong-resume-2026.pdf';
 
+// About page timeline. dot/color: tea = Thailand, air = Chicago
+const JOURNEY = [
+  {
+    year: '2020',
+    title: 'B.S. in Computer Science',
+    place: 'NKRAFA · Thailand',
+    note: 'Graduated from the Navaminda Kasatriyadhiraj Royal Air Force Academy, where discipline and code first met.',
+    dot: 'bg-tea', color: 'text-tea',
+  },
+  {
+    year: '2021',
+    title: 'Lecturer',
+    place: 'NKRAFA · Thailand',
+    note: 'Joined the Department of Computer Science and Mathematics, teaching and mentoring air cadets.',
+    dot: 'bg-tea', color: 'text-tea',
+  },
+  {
+    year: '2024',
+    title: 'M.S. in Software Engineering',
+    place: 'DePaul University · Chicago',
+    note: 'Studied abroad and came home with a wider view of technology, teamwork and user-centred design.',
+    dot: 'bg-air', color: 'text-air',
+  },
+  {
+    year: 'Now',
+    title: 'Teaching & building',
+    place: 'Saraburi · Thailand',
+    note: 'Back at NKRAFA, teaching cadets and crafting clean, thoughtful web experiences.',
+    dot: 'bg-tea', color: 'text-tea',
+  },
+];
+
 const SKILL_GROUPS = [
   { label: 'Frontend', items: ['HTML / CSS', 'JavaScript (ES6+)', 'TypeScript', 'React', 'Next.js', 'Tailwind CSS', 'Three.js / WebGL', 'PWA'] },
   { label: 'Backend & Automation', items: ['Node.js', 'PostgreSQL / Prisma', 'Python', 'Java', 'Docker', 'Google Apps Script', 'GitHub Actions'] },
@@ -451,6 +483,29 @@ export default function App() {
                     Download Resume <ArrowRight className="w-4 h-4" />
                   </a>
                 </div>
+              </section>
+
+              {/* JOURNEY — orange = Thailand, blue = Chicago (same colours as the globe markers) */}
+              <section className="w-full max-w-7xl mx-auto mt-24 md:mt-40 px-6 md:px-12 lg:px-24">
+                <div className="reveal scrim mb-12 md:mb-20">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#8a8a8a]">Journey</span>
+                  <h2 className="mt-4 font-serif text-3xl md:text-5xl text-white font-light leading-tight">
+                    <SplitWords text="From cadet" delay={150} />
+                    <span className="italic text-[#777]"><SplitWords text="to code." delay={350} /></span>
+                  </h2>
+                </div>
+
+                <ol className="journey reveal relative grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-10">
+                  {JOURNEY.map((step, i) => (
+                    <li key={step.year} className="reveal relative pl-10 md:pl-0 md:pt-12" style={{ transitionDelay: `${300 + i * 150}ms` }}>
+                      <span className={`absolute left-0 top-2 md:top-0 w-[11px] h-[11px] rounded-full ring-4 ring-[#030303] ${step.dot}`} aria-hidden="true" />
+                      <p className="font-serif text-3xl md:text-4xl text-white font-light">{step.year}</p>
+                      <p className={`mt-3 text-[9px] tracking-[0.25em] uppercase ${step.color}`}>{step.place}</p>
+                      <h3 className="mt-2 text-sm text-[#ddd]">{step.title}</h3>
+                      <p className="mt-2 max-w-xs text-xs font-light leading-relaxed text-[#8a8a8a]">{step.note}</p>
+                    </li>
+                  ))}
+                </ol>
               </section>
 
               {/* VISUAL ARCHIVE */}

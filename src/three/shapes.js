@@ -11,7 +11,7 @@ export const MARKERS = [
   [41.88, -87.63, 3], // Chicago
 ];
 
-function latLngToVec3(lat, lng, target = new THREE.Vector3()) {
+export function latLngToVec3(lat, lng, target = new THREE.Vector3()) {
   const phi = THREE.MathUtils.degToRad(90 - lat);
   const theta = THREE.MathUtils.degToRad(lng + 180);
   return target.set(

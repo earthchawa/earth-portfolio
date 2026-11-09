@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { createShapes, loadLandMask } from '../three/shapes';
+import { createShapes, loadLandMask, latLngToVec3, MARKERS } from '../three/shapes';
 import { vertexShader, fragmentShader } from '../three/shaders';
 
 const TAU = Math.PI * 2;
@@ -17,6 +17,16 @@ const CONFIG = {
   globeTilt: 0.35,        // tips the North Pole toward you so the arc is visible
   globeStartSpin: 2.95,   // Thailand faces the viewer on load
 };
+
+// Labels for the globe markers, in the same order as MARKERS
+const MARKER_LABELS = [
+  { place: 'Saraburi, TH', line: 'Where I’m from, and where I work', color: 'text-tea', dot: 'bg-tea' },
+  { place: 'Chicago, US', line: 'Where I broadened my knowledge and perspective', color: 'text-air', dot: 'bg-air' },
+];
+const MARKER_HIT_PX = 44;  // how close the pointer must be to a marker to reveal its label
+const MARKER_KEEP_PX = 90; // ...and how far it can drift before the label hides again
+const MARKER_SLOW_PX = 160; // within this, the globe stops turning so the marker doesn't run from the pointer
+const GLOBE_RADIUS = 2.4 * 1.02;
 
 // Scene → position (x, y), scale (s), opacity (o)
 // 0 Hero globe · 1 Approach plane · 2 Work </> · 3 Contact lens · 4 About cap
@@ -39,6 +49,7 @@ const LAYOUT = {
 
 export default function ParticleScene({ sceneRef, viewRef, transitionRef, onReady }) {
   const mountRef = useRef(null);
+  const labelRefs = useRef([]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -126,12 +137,67 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
 
     // --- Mouse ---
     const mouse = { x: 0, y: 0 };
+    const pointer = { x: -1e4, y: -1e4 }; // pixels, for marker hover/tap
     const tilt = { x: 0, y: 0 };
+    let touchInput = false;
     const onMove = (e) => {
-      mouse.x = e.clientX / window.innerWidth - 0.5;
-      mouse.y = e.clientY / window.innerHeight - 0.5;
+      touchInput = e.pointerType === 'touch';
+      // Only a mouse tilts the globe; a finger tapping a marker shouldn't spin it away
+      if (!touchInput) {
+        mouse.x = e.clientX / window.innerWidth - 0.5;
+        mouse.y = e.clientY / window.innerHeight - 0.5;
+      }
+      pointer.x = e.clientX;
+      pointer.y = e.clientY;
     };
     window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('pointerdown', onMove, { passive: true }); // taps on touch screens
+
+    // --- Marker labels: project each marker to the screen every frame ---
+    const markerBase = MARKERS.map(([lat, lng]) => latLngToVec3(lat, lng).multiplyScalar(GLOBE_RADIUS));
+    const mp = new THREE.Vector3();
+    const shown = markerBase.map(() => false);
+    let nearMarker = false;
+    let holdGlobe = false;
+
+    const updateLabels = (globeReady) => {
+      let anyNear = false;
+      let anyApproach = false;
+      markerBase.forEach((base, i) => {
+        const el = labelRefs.current[i];
+        if (!el) return;
+        let show = false;
+        if (globeReady) {
+          // The globe is see-through, so markers on the far side are visible too: no facing check
+          mp.copy(base).applyMatrix4(points.matrixWorld).project(camera);
+          const x = (mp.x * 0.5 + 0.5) * window.innerWidth;
+          const y = (-mp.y * 0.5 + 0.5) * window.innerHeight;
+          const dist = Math.hypot(pointer.x - x, pointer.y - y);
+          const hit = touchInput ? MARKER_HIT_PX * 1.5 : MARKER_HIT_PX; // fingers are less precise
+          show = dist < (shown[i] ? MARKER_KEEP_PX : hit);
+          anyNear ||= show;
+          anyApproach ||= dist < MARKER_SLOW_PX;
+          // Beside the marker (right, else left); on narrow screens above it. Always kept on screen.
+          const w = el.offsetWidth;
+          const vw = window.innerWidth;
+          const fitsRight = x + 18 + w <= vw - 12;
+          const fitsLeft = x - 18 - w >= 12;
+          if (fitsRight || fitsLeft) {
+            el.style.transform = `translate3d(${fitsRight ? x + 18 : x - 18 - w}px, ${y}px, 0) translateY(-50%)`;
+          } else {
+            const left = Math.min(Math.max(x - w / 2, 12), vw - w - 12);
+            el.style.transform = `translate3d(${left}px, ${y - 22}px, 0) translateY(-100%)`;
+          }
+        }
+        shown[i] = show;
+        el.style.opacity = show ? '1' : '0';
+      });
+      holdGlobe = anyApproach;
+      if (anyNear !== nearMarker) {
+        nearMarker = anyNear;
+        document.body.classList.toggle('near-marker', anyNear); // grows the custom cursor
+      }
+    };
 
     // --- Render loop ---
     const start = performance.now();
@@ -158,18 +224,26 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
       if (points) {
         const globeW = weights[0];
 
-        if (target === 0 && !reduceMotion) spin += CONFIG.globeSpin;
+        // Hold the globe still while a marker label is open, so it doesn't slide away from the pointer
+        if (target === 0 && !reduceMotion) { if (!holdGlobe) spin += CONFIG.globeSpin; }
         else spin = lerp(spin, Math.round(spin / TAU) * TAU, 0.05);
 
-        tilt.x = lerp(tilt.x, mouse.x, 0.05);
-        tilt.y = lerp(tilt.y, mouse.y, 0.05);
+        if (!holdGlobe) {
+          tilt.x = lerp(tilt.x, mouse.x, 0.05);
+          tilt.y = lerp(tilt.y, mouse.y, 0.05);
+        }
         points.rotation.y = spin + tilt.x * 0.6;
         points.rotation.x = tilt.y * 0.4 + CONFIG.globeTilt * globeW;
 
         points.position.x = lerp(points.position.x, L.x, CONFIG.layoutSpeed);
         points.position.y = lerp(points.position.y, L.y, CONFIG.layoutSpeed);
         points.scale.setScalar(lerp(points.scale.x, L.s, CONFIG.layoutSpeed));
+        points.updateMatrixWorld();
       }
+
+      const globeReady = points && isHome && target === 0 && weights[0] > 0.9
+        && transitionRef.current === 'idle' && window.scrollY < window.innerHeight * 0.5;
+      updateLabels(globeReady);
 
       starMat.opacity = lerp(starMat.opacity, isHome ? 0.35 + Math.sin(t * 1.5) * 0.15 : 0.1, 0.05);
       stars.rotation.y = t * 0.01;
@@ -190,6 +264,8 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
       disposed = true;
       cancelAnimationFrame(rafId);
       window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerdown', onMove);
+      document.body.classList.remove('near-marker');
       window.removeEventListener('resize', onResize);
       geometry?.dispose();
       material.dispose();
@@ -200,5 +276,24 @@ export default function ParticleScene({ sceneRef, viewRef, transitionRef, onRead
     };
   }, [sceneRef, viewRef, transitionRef, onReady]);
 
-  return <div ref={mountRef} className="fixed inset-0 z-0 pointer-events-none" aria-hidden="true" />;
+  return (
+    <>
+      <div ref={mountRef} className="fixed inset-0 z-0 pointer-events-none" aria-hidden="true" />
+      <div className="fixed inset-0 z-20 pointer-events-none" aria-hidden="true">
+        {MARKER_LABELS.map((m, i) => (
+          <div
+            key={m.place}
+            ref={(el) => { labelRefs.current[i] = el; }}
+            className="marker-label absolute top-0 left-0 opacity-0 px-4 py-3 bg-[#030303]/85 backdrop-blur-sm border border-white/10"
+          >
+            <span className={`block text-[9px] tracking-[0.25em] uppercase ${m.color}`}>
+              <span className={`inline-block w-1.5 h-1.5 mr-2 rounded-full align-middle ${m.dot}`} />
+              {m.place}
+            </span>
+            <span className="block mt-1 max-w-[15rem] font-serif italic text-base md:text-lg leading-snug text-white">{m.line}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
 }
