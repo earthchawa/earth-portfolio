@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { ArrowDown, ArrowRight, ArrowUpRight } from 'lucide-react';
+import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import Cursor from './components/Cursor';
 import Preloader from './components/Preloader';
 import Logo from './components/Logo';
@@ -380,14 +380,9 @@ export default function App() {
                     </span>
                   </h2>
 
-                  <div className="flex flex-col items-center gap-8 font-light">
-                    <a href={`mailto:${CONTACT.email}`} className="interactive pb-2 text-base md:text-lg tracking-wide text-[#ccc] hover:text-white border-b border-[#333] hover:border-white transition-colors">
-                      {CONTACT.email}
-                    </a>
-                    <a href={RESUME_URL} download className="interactive inline-flex items-center gap-2 pb-1 text-[10px] tracking-[0.2em] uppercase text-[#8a8a8a] hover:text-white border-b border-[#333] hover:border-white transition-colors">
-                      Download Resume <ArrowDown className="w-3 h-3" />
-                    </a>
-                  </div>
+                  <a href={`mailto:${CONTACT.email}`} className="interactive pb-2 text-base md:text-lg font-light tracking-wide text-[#ccc] hover:text-white border-b border-[#333] hover:border-white transition-colors">
+                    {CONTACT.email}
+                  </a>
 
                   <div className="mt-16 flex gap-8 text-[10px] uppercase tracking-[0.2em] text-[#8a8a8a]">
                     <a href={CONTACT.instagram} target="_blank" rel="noopener noreferrer" className="interactive hover:text-white transition-colors">Instagram</a>
