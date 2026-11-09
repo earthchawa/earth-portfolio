@@ -21,31 +21,31 @@ const RESUME_URL = '/chawaphong-resume-2026.pdf';
 // About page timeline. dot/color: tea = Thailand, air = Chicago
 const JOURNEY = [
   {
-    year: '2020',
+    year: '2013–2016',
+    title: 'Military High School',
+    place: 'AFAPS · Thailand',
+    note: 'Armed Forces Academies Preparatory School, where the discipline began.',
+    dot: 'bg-tea', color: 'text-tea',
+  },
+  {
+    year: '2016–2021',
     title: 'B.S. in Computer Science',
     place: 'NKRAFA · Thailand',
-    note: 'Graduated from the Navaminda Kasatriyadhiraj Royal Air Force Academy, where discipline and code first met.',
+    note: 'Air cadet at the Navaminda Kasatriyadhiraj Royal Air Force Academy, where discipline and code first met.',
     dot: 'bg-tea', color: 'text-tea',
   },
   {
-    year: '2021',
-    title: 'Lecturer',
-    place: 'NKRAFA · Thailand',
-    note: 'Joined the Department of Computer Science and Mathematics, teaching and mentoring air cadets.',
-    dot: 'bg-tea', color: 'text-tea',
-  },
-  {
-    year: '2024',
+    year: '2022–2024',
     title: 'M.S. in Software Engineering',
     place: 'DePaul University · Chicago',
     note: 'Studied abroad and came home with a wider view of technology, teamwork and user-centred design.',
     dot: 'bg-air', color: 'text-air',
   },
   {
-    year: 'Now',
-    title: 'Teaching & building',
-    place: 'Saraburi · Thailand',
-    note: 'Back at NKRAFA, teaching cadets and crafting clean, thoughtful web experiences.',
+    year: '2024–Now',
+    title: 'Lecturer',
+    place: 'NKRAFA · Thailand',
+    note: 'Back at NKRAFA in the Department of Computer Science and Mathematics, teaching and mentoring air cadets.',
     dot: 'bg-tea', color: 'text-tea',
   },
 ];

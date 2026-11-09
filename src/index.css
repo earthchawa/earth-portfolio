@@ -30,7 +30,6 @@ body { -webkit-font-smoothing: antialiased; }
   transition: width 0.3s var(--ease-out), height 0.3s var(--ease-out),
               background-color 0.3s ease, border-color 0.3s ease;
 }
-body.near-marker .cursor-dot,
 body:has(.interactive:hover) .cursor-dot {
   width: 45px; height: 45px;
   background-color: color-mix(in srgb, var(--color-air) 12%, transparent);
@@ -163,12 +162,6 @@ body:has(.interactive:hover) .cursor-dot {
 @media (hover: none), (max-width: 767px) {
   .archive-img,
   .profile-photo { filter: grayscale(0.3); opacity: 0.9; }
-}
-/* ---------- Globe marker labels ---------- */
-.marker-label {
-  will-change: transform, opacity;
-  transition: opacity 0.4s var(--ease-out);
-  text-shadow: 0 0 18px rgba(3, 3, 3, 0.95);
 }
 
 /* ---------- Journey timeline: the line draws itself in ---------- */
