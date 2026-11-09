@@ -49,7 +49,7 @@ export default function TiltCard({ src, w, h, title, caption }) {
       {/* Mobile caption (no hover on touch screens) */}
       <div className="md:hidden mt-2">
         <p className="font-serif text-sm text-white/90 leading-tight">{title}</p>
-        <p className="mt-1 text-[8px] tracking-widest uppercase text-[#666]">{caption}</p>
+        <p className="mt-1 text-[8px] tracking-widest uppercase text-[#999]">{caption}</p>
       </div>
     </div>
   );

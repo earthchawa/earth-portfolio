@@ -40,8 +40,11 @@ export default function Cursor({ preview }) {
         const toY = target.y + GAP + h > window.innerHeight - MARGIN ? -GAP - h : GAP;
         offset.x += (toX - offset.x) * 0.15;
         offset.y += (toY - offset.y) * 0.15;
+        // ...and never let it slide past any edge (tall cards near the top or bottom)
+        const x = Math.min(Math.max(card.x + offset.x, MARGIN), window.innerWidth - w - MARGIN);
+        const y = Math.min(Math.max(card.y + offset.y, MARGIN), window.innerHeight - h - MARGIN);
         el.style.transform =
-          `translate3d(${card.x + offset.x}px, ${card.y + offset.y}px, 0) perspective(800px) ` +
+          `translate3d(${x}px, ${y}px, 0) perspective(800px) ` +
           `rotateY(${clamp(vx * 0.15)}deg) rotateX(${clamp(-vy * 0.15)}deg) rotateZ(${clamp(vx * 0.05, 8)}deg)`;
       }
       raf = requestAnimationFrame(loop);
@@ -69,6 +72,7 @@ export default function Cursor({ preview }) {
             <div className={`p-4 ${last.image ? 'border-t border-white/5' : ''}`}>
               <span className="text-[9px] tracking-[0.2em] uppercase text-air">{last.category}</span>
               <p className="mt-2 text-xs font-light leading-relaxed text-[#bbb]">{last.description}</p>
+              {last.outcome && <p className="mt-2 text-xs font-light leading-relaxed text-air">→ {last.outcome}</p>}
             </div>
           )}
         </div>
